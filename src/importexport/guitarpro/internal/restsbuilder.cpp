@@ -82,11 +82,6 @@ void RestsBuilder::setMeasure(mu::engraving::Measure* measure)
     m_measure = measure;
 }
 
-void RestsBuilder::setMultiVoice(bool multiVoice)
-{
-    m_multiVoice = multiVoice;
-}
-
 RestsBuilder::RestsStateInMeasure RestsBuilder::addRestsToScore(track_idx_t trackIdx)
 {
     if (!validState()) {
@@ -166,7 +161,7 @@ void RestsBuilder::hideRestsInEmptyMeasures()
 
             // hiding rests in voices without chords, but leaving voice 0 for "single-voice" mode
             if (!m_chordExistsForVoice[voice]) {
-                rest->setGap(!mainVoice || m_multiVoice);
+                rest->setGap(true);
             }
         }
     }

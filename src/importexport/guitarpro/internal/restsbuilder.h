@@ -62,7 +62,6 @@ public:
 
     RestsBuilder::RestsStateInMeasure addRestsToScore(track_idx_t trackIdx);
 
-    void setMultiVoice(bool multiVoice);
     void setMeasure(mu::engraving::Measure* measure);
     void setStartTrack(track_idx_t trackIdx);
 
@@ -95,7 +94,6 @@ private:
     std::vector<std::unordered_map<mu::engraving::Segment*, RestToAdd> > m_restsToAdd;
 
     size_t m_voices = 0;
-    bool m_multiVoice = false;
     track_idx_t m_startTrack = 0;
 };
 } // mu::iex::guitarpro

@@ -940,9 +940,7 @@ void GPConverter::addKeySig(const GPMasterBar* mB, Measure* measure)
 
 void GPConverter::setUpGPScore(const GPScore* gpscore)
 {
-    bool multiVoice = gpscore->multiVoice();
-    engravingConfiguration()->setGuitarProMultivoiceEnabled(multiVoice);
-    m_restsBuilder->setMultiVoice(multiVoice);
+    engravingConfiguration()->setGuitarProMultivoiceEnabled(gpscore->multiVoice());
 
     std::vector<String> fieldNames = { gpscore->title(), gpscore->subTitle(), gpscore->artist(),
                                        gpscore->album(), gpscore->composer(), gpscore->poet() };
