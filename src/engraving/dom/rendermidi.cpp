@@ -765,15 +765,15 @@ static bool renderNoteArticulation(NoteEventList* events, Note* note, bool chrom
     auto makeEvent
         = [note, chord, chromatic, events](int pitch, int ontime, int duration,
                                            double velocityMultiplier = NoteEvent::DEFAULT_VELOCITY_MULTIPLIER, bool play = true) {
-        if (note->ghost()) {
-            velocityMultiplier *= NoteEvent::GHOST_VELOCITY_MULTIPLIER;
-        }
-        events->push_back(NoteEvent(chromatic ? pitch : chromaticPitchSteps(note, note, pitch),
-                                    ontime / chord->actualTicks().ticks(),
-                                    duration / chord->actualTicks().ticks(), velocityMultiplier, play));
+              if (note->ghost()) {
+                  velocityMultiplier *= NoteEvent::GHOST_VELOCITY_MULTIPLIER;
+              }
+              events->push_back(NoteEvent(chromatic ? pitch : chromaticPitchSteps(note, note, pitch),
+                                          ontime / chord->actualTicks().ticks(),
+                                          duration / chord->actualTicks().ticks(), velocityMultiplier, play));
 
-        return ontime + duration;
-    };
+              return ontime + duration;
+          };
 
     // calculate the number of times to repeat the body, and sustain the last note of the body
     // 1000 = P + numrepeat*B+sustain + S
@@ -814,7 +814,7 @@ static bool renderNoteArticulation(NoteEventList* events, Note* note, bool chrom
                 constexpr double glissandoPart = 0.33;
 
                 int glissandoDuration = tremoloBefore ? totalDuration * glissandoPart : totalDuration
-                                        * (1 - graceOnBeatProportion) * glissandoPart;
+                                                                                            * (1 - graceOnBeatProportion) * glissandoPart;
                 easeInOut.timeList(b - 1, glissandoDuration, &onTimes);
 
                 if (!onTimes.empty()) {
@@ -1172,6 +1172,15 @@ static void createSlideInNotePlayEvents(Note* note, Chord* prevChord, NoteEventL
     if (!note->hasSlideToNote()) {
         return;
     }
+    auto isPortamento = [](int p) {
+        return (p >= 40 && p <= 45) || (p >= 48 && p <= 71) || (p >= 80 && p <= 103);
+    };
+
+    int midiProgram = note->chord()->part()->instrument()->channel(0)->program();
+    if (isPortamento(midiProgram)) {
+        LOGE() << "@# skip slides";
+        return;
+    }
 
     int slideNotes = 0;
     bool upSlide = note->slideToType() == Note::SlideType::UpToNote;
@@ -1211,6 +1220,16 @@ static void createSlideInNotePlayEvents(Note* note, Chord* prevChord, NoteEventL
 static void createSlideOutNotePlayEvents(Note* note, NoteEventList* el, int onTime, bool hasTremolo)
 {
     if (!note->hasSlideFromNote()) {
+        return;
+    }
+
+    auto isPortamento = [](int p) {
+        return (p >= 40 && p <= 45) || (p >= 48 && p <= 71) || (p >= 80 && p <= 103);
+    };
+
+    int midiProgram = note->chord()->part()->instrument()->channel(0)->program();
+    if (isPortamento(midiProgram)) {
+        LOGE() << "@# skip slides";
         return;
     }
 
@@ -1289,6 +1308,8 @@ static std::vector<NoteEventList> renderChord(Chord* chord, Chord* prevChord, in
     // Check each note and apply gateTime
     for (size_t i : getNotesIndexesToRender(chord)) {
         Note* note = chord->notes()[i];
+        Glissando* gl = backGlissando(note);
+
         NoteEventList* el = &ell[i];
 
         createSlideOutNotePlayEvents(note, el, ontime, tremolo);
@@ -1301,7 +1322,6 @@ static std::vector<NoteEventList> renderChord(Chord* chord, Chord* prevChord, in
             el->push_back(NoteEvent(0, ontime, 1000 - trailtime,
                                     !note->ghost() ? NoteEvent::DEFAULT_VELOCITY_MULTIPLIER : NoteEvent::GHOST_VELOCITY_MULTIPLIER));
 
-            Glissando* gl = backGlissando(note);
             if (gl && isGlissandoValid(gl) && !gl->glissandoShift()) {
                 el->back().setSlide(true);
             }

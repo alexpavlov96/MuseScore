@@ -154,23 +154,28 @@ bool isGlissandoBack(const Note* note)
 }
 
 static void collectGlissando(int channel, MidiInstrumentEffect effect,
-                             int onTime, int offTime,
+                             int glissandoStartTick, int glissandoEndTick, int connectedNoteDuration,
                              int pitchDelta,
                              PitchWheelRenderer& pitchWheelRenderer, staff_idx_t staffIdx)
 {
     const float scale = (float)wheelSpec.mLimit / wheelSpec.mAmplitude;
 
-    PitchWheelRenderer::PitchWheelFunction func;
-    func.mStartTick = onTime;
-    func.mEndTick = offTime;
+    PitchWheelRenderer::PitchWheelFunction pbFunc;
+    pbFunc.mStartTick = glissandoStartTick;
+    pbFunc.mEndTick = glissandoEndTick + connectedNoteDuration;
 
-    auto linearFunc = [startTick = onTime, endTick = offTime, pitchDelta, scale] (uint32_t tick) {
-        float x = (float)(tick - startTick) / (endTick - startTick);
-        return pitchDelta * x * scale;
+    auto glissandoFunc = [glissandoStartTick, glissandoEndTick, pitchDelta, scale] (uint32_t tick) {
+        auto linearFunc = [startTick = glissandoStartTick, endTick = glissandoEndTick, pitchDelta, scale] (uint32_t tick) {
+            float x = (float)(tick - startTick) / (endTick - startTick);
+            return pitchDelta * x * scale;
+        };
+
+        return linearFunc(std::min(tick, static_cast<uint32_t>(glissandoEndTick)));
     };
-    func.func = linearFunc;
 
-    pitchWheelRenderer.addPitchWheelFunction(func, channel, staffIdx, effect);
+
+    pbFunc.func = glissandoFunc;
+    pitchWheelRenderer.addPitchWheelFunction(pbFunc, channel, staffIdx, effect);
 }
 
 static Fraction getPlayTicksForBend(const Note* note)
@@ -213,23 +218,97 @@ static void playNote(EventsHolder& events, const Note* note, PlayNoteParams para
         params.velo = note->customizeVelocity(params.velo);
     }
 
-    if (params.callAllSoundOff && params.onTime != 0) {
-        NPlayEvent ev1(ME_CONTROLLER, params.channel, CTRL_ALL_NOTES_OFF, 0);
-        ev1.setEffect(params.effect);
-        events[params.channel].insert(std::pair<int, NPlayEvent>(params.onTime - 1, ev1));
+    int onTick = params.onTime - params.offset;
+    int offTick = params.offTime - params.offset;
+    int pitch = params.pitch;
+
+    for (Spanner* spanner : note->spannerBack()) {
+        if (spanner->type() == ElementType::GLISSANDO) {
+            Glissando* glissando = toGlissando(spanner);
+            if (glissando->glissandoStyle() == GlissandoStyle::PORTAMENTO) {
+                LOGE() << "@# BACK glissando";
+                return;
+            }
+        }
     }
 
-    NPlayEvent ev(ME_NOTEON, params.channel, params.pitch, params.velo);
+    int midiProgram = note->chord()->part()->instrument()->channel(0)->program();
+
+    auto isPortamento = [](int p) {
+        return (p >= 40 && p <= 45) || (p >= 48 && p <= 71) || (p >= 80 && p <= 103);
+    };
+    if (isPortamento(midiProgram)) {
+        /// slide-out
+        if (note->hasSlideFromNote()) {
+
+            // todo: ticks according to fret (?)
+            // todo: ticks according to chord length
+            const float scale = (float)wheelSpec.mLimit / wheelSpec.mAmplitude;
+
+            PitchWheelRenderer::PitchWheelFunction pbFunc;
+            pbFunc.mStartTick = params.offTime - 60; // 1/32
+            pbFunc.mEndTick = params.offTime;
+
+            const int pitchDelta = (note->slideFromType() == Note::SlideType::UpFromNote) ? 3 : -3; /// 0-3?
+
+            /// TODO: combine with glissando
+            auto linearFunc = [startTick = pbFunc.mStartTick, endTick = pbFunc.mEndTick, pitchDelta, scale] (uint32_t tick) {
+                float x = (float)(tick - startTick) / (endTick - startTick);
+                return pitchDelta * x * scale;
+            };
+
+            pbFunc.func = linearFunc;
+            pitchWheelRenderer.addPitchWheelFunction(pbFunc, params.channel, params.staffIdx, params.effect);
+        }
+
+        if (note->hasSlideToNote()) {
+            // todo: ticks according to fret (?)
+            // todo: ticks according to chord length
+            const float scale = (float)wheelSpec.mLimit / wheelSpec.mAmplitude;
+            const int slideDuration = 60; // TODO
+
+            onTick -= slideDuration; /// ! note on should be before pitchbends
+
+            PitchWheelRenderer::PitchWheelFunction pbFunc;
+            pbFunc.mStartTick = onTick; // 1/32
+            pbFunc.mEndTick = offTick;
+
+
+            const int pitchDelta = (note->slideToType() == Note::SlideType::UpToNote) ? 3 : -3; /// 0-3?
+            pitch -= pitchDelta;
+
+            auto slideFunc = [slideStartTick = onTick, slideEndTick = onTick + slideDuration, pitchDelta, scale] (uint32_t tick) {
+                auto linearFunc = [startTick = slideStartTick, endTick = slideEndTick, pitchDelta, scale] (uint32_t tick) {
+                    float x = (float)(tick - startTick) / (endTick - startTick);
+                    return pitchDelta * x * scale;
+                };
+
+                return linearFunc(std::min(tick, static_cast<uint32_t>(slideEndTick)));
+            };
+
+            pbFunc.func = slideFunc;
+            pitchWheelRenderer.addPitchWheelFunction(pbFunc, params.channel, params.staffIdx, params.effect);
+        }
+    }
+
+    if (params.callAllSoundOff && onTick != 0) {
+        NPlayEvent ev1(ME_CONTROLLER, params.channel, CTRL_ALL_NOTES_OFF, 0);
+        ev1.setEffect(params.effect);
+        events[params.channel].insert(std::pair<int, NPlayEvent>(onTick - 1, ev1));
+    }
+
+    NPlayEvent ev(ME_NOTEON, params.channel, pitch, params.velo);
     ev.setOriginatingStaff(params.staffIdx);
     ev.setTuning(note->tuning());
     ev.setNote(note);
     ev.setEffect(params.effect);
-    ev.setSlide(params.slide);
     if (params.offTime > 0 && params.offTime < params.onTime) {
+        LOGE() << "@# return!";
         return;
     }
 
-    events[params.channel].insert(std::pair<int, NPlayEvent>(std::max(0, params.onTime - params.offset), ev));
+    events[params.channel].insert(std::pair<int, NPlayEvent>(std::max(0, onTick), ev));
+
     // adds portamento for continuous glissando
     for (Spanner* spanner : note->spannerFor()) {
         if (spanner->type() == ElementType::GLISSANDO) {
@@ -239,8 +318,9 @@ static void playNote(EventsHolder& events, const Note* note, PlayNoteParams para
                 double pitchDelta = nextNote->ppitch() - params.pitch;
                 int timeDelta = params.offTime - params.onTime;
                 if (pitchDelta != 0 && timeDelta != 0) {
-                    collectGlissando(params.channel, params.effect, params.onTime, params.offTime, pitchDelta, pitchWheelRenderer,
+                    collectGlissando(params.channel, params.effect, params.onTime + timeDelta / 2, params.offTime, nextNote->playTicks(), pitchDelta, pitchWheelRenderer,
                                      glissando->staffIdx());
+                    offTick += nextNote->playTicks();
                 }
             }
         }
@@ -249,7 +329,7 @@ static void playNote(EventsHolder& events, const Note* note, PlayNoteParams para
     ev.setVelo(0);
     if (!note->part()->instrument(note->tick())->useDrumset()
         && params.offTime != -1) {
-        events[params.channel].insert(std::pair<int, NPlayEvent>(std::max(0, params.offTime - params.offset), ev));
+        events[params.channel].insert(std::pair<int, NPlayEvent>(std::max(0, offTick), ev));
     }
 }
 
@@ -311,7 +391,7 @@ static void collectBend(const PitchValues& playData, staff_idx_t staffIdx,
         func.mEndTick = onTime + startTimeNextPoint;
 
         auto bendFunc = [ startTick = func.mStartTick, scale,
-                          a, b] (uint32_t tick) {
+                         a, b] (uint32_t tick) {
             float x = (float)(tick - startTick);
 
             float y = a * x * x + b;
@@ -483,12 +563,12 @@ static void collectNote(EventsHolder& events, const Note* note, const CollectNot
         }
 
         collectBend(bend->points(), bend->staffIdx(), noteChannel, tick1, tick1 + getPlayTicksForBend(
-                        note).ticks(), pitchWheelRenderer, noteEffect);
+                                                                                      note).ticks(), pitchWheelRenderer, noteEffect);
     }
 
     if (StretchedBend* stretchedBend = note->stretchedBend()) {
         collectBend(stretchedBend->pitchValues(), stretchedBend->staffIdx(), noteChannel, tick1, tick1 + getPlayTicksForBend(
-                        note).ticks(), pitchWheelRenderer, noteEffect);
+                                                                                                             note).ticks(), pitchWheelRenderer, noteEffect);
     }
 }
 
@@ -512,8 +592,8 @@ static void aeolusSetStop(int tick, int channel, int i, int k, bool val, EventsH
 
     event.setValue(k);
     events[channel].insert(std::pair<int, NPlayEvent>(tick, event));
-//      event.setValue(0x40 + i);
-//      events->insert(std::pair<int,NPlayEvent>(tick, event));
+    //      event.setValue(0x40 + i);
+    //      events->insert(std::pair<int,NPlayEvent>(tick, event));
 }
 
 //---------------------------------------------------------
@@ -888,7 +968,7 @@ void MidiRenderer::renderSpanners(EventsHolder& events, PitchWheelRenderer& pitc
 }
 
 static std::vector<std::pair<int, int> > collectTicksForEffect(const Score* const score, track_idx_t track, int stick, int etick,
-                                                               MidiInstrumentEffect effect)
+                                                              MidiInstrumentEffect effect)
 {
     std::vector<std::pair<int, int> > ticksForEffect;
     int curTick = stick;
@@ -993,7 +1073,7 @@ void MidiRenderer::doRenderSpanners(EventsHolder& events, Spanner* s, uint32_t c
             pedalEventList.push_back(std::pair<int,
                                                std::pair<bool,
                                                          int> >(st + (2 - MScore::pedalEventsMinTicks),
-                                                                std::pair<bool, int>(false, staff)));
+                                                               std::pair<bool, int>(false, staff)));
         }
         int a = st + 2;
         pedalEventList.push_back(std::pair<int, std::pair<bool, int> >(a, std::pair<bool, int>(true, staff)));
@@ -1223,7 +1303,7 @@ void MidiRenderer::renderScore(EventsHolder& events, const Context& ctx)
 
     EventsHolder pitchWheelEvents = pitchWheelRender.renderPitchWheel();
     events.mergePitchWheelEvents(pitchWheelEvents);
-//    events->merge(pitchWheelEvents);
+    //    events->merge(pitchWheelEvents);
 
     if (ctx.metronome) {
         renderMetronome(events);
