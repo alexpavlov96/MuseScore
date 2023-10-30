@@ -291,6 +291,8 @@ static const std::vector<Item<ElementType> > ELEMENT_TYPES = {
     { ElementType::STICKING,             "Sticking",             TranslatableString("engraving", "Sticking") },
     { ElementType::GRACE_NOTES_GROUP,    "GraceNotesGroup",      TranslatableString::untranslatable("Grace notes group") },
     { ElementType::FRET_CIRCLE,          "FretCircle",           TranslatableString::untranslatable("Fret circle") },
+    { ElementType::HAMMER_PULL,          "HammerPull",           TranslatableString::untranslatable("Hammer Pull") },
+
     { ElementType::GUITAR_BEND,          "GuitarBend",           TranslatableString("engraving", "Guitar bend") },
     { ElementType::GUITAR_BEND_SEGMENT,  "GuitarBendSegment",    TranslatableString("engraving", "Guitar bend segment") },
     { ElementType::GUITAR_BEND_HOLD,     "GuitarBendHold",           TranslatableString("engraving", "Guitar bend hold") },

@@ -68,6 +68,7 @@
 #include "dom/guitarbend.h"
 
 #include "dom/hairpin.h"
+#include "dom/hammerpull.h"
 #include "dom/harppedaldiagram.h"
 #include "dom/harmonicmark.h"
 #include "dom/harmony.h"
@@ -262,6 +263,9 @@ void TLayout::layoutItem(EngravingItem* item, LayoutContext& ctx)
     case ElementType::HAIRPIN:          layoutHairpin(item_cast<Hairpin*>(item), ctx);
         break;
     case ElementType::HAIRPIN_SEGMENT:  layoutHairpinSegment(item_cast<HairpinSegment*>(item), ctx);
+        break;
+    case ElementType::HAMMER_PULL:
+        layoutHammerPull(item_cast<HammerPull*>(item), static_cast<HammerPull::LayoutData*>(ldata), ctx);
         break;
     case ElementType::HARP_DIAGRAM:
         layoutHarpPedalDiagram(item_cast<const HarpPedalDiagram*>(item), static_cast<HarpPedalDiagram::LayoutData*>(ldata));
@@ -3183,6 +3187,61 @@ void TLayout::fillHairpinSegmentShape(const HairpinSegment* item, HairpinSegment
     }
 
     ldata->setShape(sh);
+}
+
+void TLayout::layoutHammerPull(HammerPull* item, HammerPull::LayoutData* ldata, LayoutContext& ctx)
+{
+    LD_INDEPENDENT;
+
+    layoutBaseTextBase(item, ldata);
+
+    Slur* slur = item->slur();
+    const SlurSegment* slurSeg = slur->segmentAt(0);
+
+    PointF bezier1 = slurSeg->ups(Grip::BEZIER1).pos();
+    PointF bezier2 = slurSeg->ups(Grip::BEZIER2).pos();
+    PointF shoulder = slurSeg->ups(Grip::SHOULDER).pos();
+    PointF normalVector(bezier1.y() - bezier2.y(), bezier2.x() - bezier1.x());
+
+    double normalVectorLength = std::sqrt(normalVector.x() * normalVector.x() + normalVector.y() * normalVector.y());
+    IF_ASSERT_FAILED(normalVectorLength > 0) {
+        return;
+    }
+
+    normalVector.setX(normalVector.x() / normalVectorLength);
+    normalVector.setY(normalVector.y() / normalVectorLength);
+
+    double distanceFromSlur = ctx.conf().spatium();
+
+    Segment* engSeg = toSegment(item->parent());
+
+    if (slur->up()) {
+        normalVector.setX(-normalVector.x());
+        normalVector.setY(-normalVector.y());
+    }
+
+    PointF hammerPos(shoulder.x() + distanceFromSlur * normalVector.x(), shoulder.y() + distanceFromSlur * normalVector.y());
+
+    /// DEBUG
+    item->setNormalVector(normalVector);
+    item->setShoulderCoord(PointF(hammerPos.x() - distanceFromSlur * normalVector.x(), hammerPos.y() - distanceFromSlur * normalVector.y()));
+    item->setDistance(distanceFromSlur);
+    ///
+
+    if (!slur->up()) {
+//        /// it's clear why height. But which distance EXTRA should we add?
+        hammerPos.setY(hammerPos.y() + item->height());
+    }
+
+//    hammerPos.setX(hammerPos.x() - item->width / 2);
+
+    /// global positioning - in case slur is moved manually
+    ldata->setPos(hammerPos.x() + slurSeg->pagePos().x() - engSeg->pagePos().x(), hammerPos.y() + slurSeg->pagePos().y() - engSeg->pagePos().y());
+
+    /// DEBUG
+    item->setShoulderCoord(PointF(item->shoulderCoord().x() + slurSeg->pagePos().x() - engSeg->pagePos().x(), item->shoulderCoord().y() + slurSeg->pagePos().y() - engSeg->pagePos().y()));
+    item->setShoulderCoord(PointF(item->shoulderCoord().x() - item->x(), item->shoulderCoord().y() - item->y()));
+    /// DEBUG
 }
 
 void TLayout::layoutHarpPedalDiagram(const HarpPedalDiagram* item, HarpPedalDiagram::LayoutData* ldata)

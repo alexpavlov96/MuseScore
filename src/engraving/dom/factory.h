@@ -206,6 +206,9 @@ public:
     static FretCircle* createFretCircle(Chord* parent, bool isAccessibleEnabled = true);
     static FretCircle* copyFretCircle(const FretCircle& src);
 
+    static HammerPull* createHammerPull(Segment* parent, bool isAccessibleEnabled = true);
+    static HammerPull* copyHammerPull(const HammerPull& src);
+
     static Tuplet* createTuplet(Measure* parent, bool isAccessibleEnabled = true);
     static Tuplet* copyTuplet(const Tuplet& src);
 

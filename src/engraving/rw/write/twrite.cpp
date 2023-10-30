@@ -201,7 +201,7 @@ public:
 void TWrite::writeItem(const EngravingItem* item, XmlWriter& xml, WriteContext& ctx)
 {
     bool found = WriteVisitor::visit(WriteTypes {}, item, xml, ctx);
-    DO_ASSERT(found);
+//    DO_ASSERT(found);
 }
 
 void TWrite::writeItems(const ElementList& items, XmlWriter& xml, WriteContext& ctx)

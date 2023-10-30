@@ -593,6 +593,7 @@ void Segment::add(EngravingItem* el)
     case ElementType::STAFF_TEXT:
     case ElementType::SYSTEM_TEXT:
     case ElementType::TRIPLET_FEEL:
+    case ElementType::HAMMER_PULL:
     case ElementType::PLAYTECH_ANNOTATION:
     case ElementType::CAPO:
     case ElementType::REHEARSAL_MARK:
@@ -779,6 +780,7 @@ void Segment::remove(EngravingItem* el)
     case ElementType::STAFF_TEXT:
     case ElementType::SYSTEM_TEXT:
     case ElementType::TRIPLET_FEEL:
+    case ElementType::HAMMER_PULL:
     case ElementType::PLAYTECH_ANNOTATION:
     case ElementType::CAPO:
     case ElementType::SYMBOL:

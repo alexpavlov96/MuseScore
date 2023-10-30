@@ -63,6 +63,7 @@
 #include "dom/guitarbend.h"
 
 #include "dom/hairpin.h"
+#include "dom/hammerpull.h"
 #include "dom/harppedaldiagram.h"
 #include "dom/harmonicmark.h"
 #include "dom/harmony.h"
@@ -227,6 +228,8 @@ void TDraw::drawItem(const EngravingItem* item, draw::Painter* painter)
         break;
 
     case ElementType::HAIRPIN_SEGMENT: draw(item_cast<const HairpinSegment*>(item), painter);
+        break;
+    case ElementType::HAMMER_PULL:                 draw(item_cast<const HammerPull*>(item), painter);
         break;
     case ElementType::HARP_DIAGRAM: draw(item_cast<const HarpPedalDiagram*>(item), painter);
         break;
@@ -1782,6 +1785,37 @@ void TDraw::draw(const HairpinSegment* item, Painter* painter)
         painter->setBrush(BrushStyle::NoBrush);
         painter->drawEllipse(item->circledTip(), item->circledTipRadius(), item->circledTipRadius());
     }
+}
+
+void TDraw::draw(const HammerPull* item, Painter* painter)
+{
+    LOGE() << "@# --------- draw ----------";
+
+    /// DEBUG
+    Color color = item->curColor();
+
+    Pen pen(color, 1.0);
+    painter->setPen(pen);
+    painter->setBrush(BrushStyle::NoBrush);
+
+    PointF normVec = item->normalVector();
+    PointF shoulderCoord = item->shoulderCoord();
+
+    /// correct normal vector line from "P"
+//    painter->drawLine(0, 0, normVec.x() * 100, normVec.y() * 100);
+
+    Slur* slur = item->slur();
+    const SlurSegment* slurSeg = slur->segmentAt(0);
+    PointF shoulder = slurSeg->ups(Grip::SHOULDER).pos();
+    double distance = item->distance();
+    Segment* engSeg = toSegment(item->parent());
+
+    painter->drawLine(shoulderCoord.x(), shoulderCoord.y(), shoulderCoord.x() + normVec.x() * distance, shoulderCoord.y() + normVec.y() * distance);
+
+//    LOGE() << "@# line from " << item->pagePos().x() << ", " << item->pagePos().y() << " to " << item->pagePos().x() + normVec.x() * 100 << ", " << item->pagePos().y() + normVec.y() * 100;
+
+    TRACE_DRAW_ITEM;
+    drawTextBase(item, painter);
 }
 
 void TDraw::draw(const HarpPedalDiagram* item, Painter* painter)

@@ -26,6 +26,7 @@
 #include "engraving/dom/glissando.h"
 #include "engraving/dom/gradualtempochange.h"
 #include "engraving/dom/hairpin.h"
+#include "engraving/dom/hammerpull.h"
 #include "engraving/dom/instrchange.h"
 #include "engraving/dom/jump.h"
 #include "engraving/dom/keysig.h"
@@ -1298,6 +1299,7 @@ void GPConverter::addContinuousSlideHammerOn()
     };
 
     std::unordered_map<Note*, Slur*> legatoSlides;
+    std::unordered_map<Slur*, HammerPull*> hammerPullForSlur;
     for (const auto& slide : _slideHammerOnMap) {
         Note* startNote = slide.first;
         Note* endNote = searchEndNote(startNote);
@@ -1331,8 +1333,9 @@ void GPConverter::addContinuousSlideHammerOn()
         }
 
         if (slide.second == SlideHammerOn::LegatoSlide || slide.second == SlideHammerOn::HammerOn) {
+            Slur* slur = nullptr;
             if (legatoSlides.count(startNote) == 0) {
-                Slur* slur = mu::engraving::Factory::createSlur(_score->dummy());
+                slur = mu::engraving::Factory::createSlur(_score->dummy());
                 slur->setStartElement(startNote->chord());
                 slur->setTrack(track);
                 slur->setTick(startTick);
@@ -1341,25 +1344,26 @@ void GPConverter::addContinuousSlideHammerOn()
                 slur->setEndElement(endNote->chord());
                 _score->addSpanner(slur);
             } else {
-                Slur* slur = legatoSlides[startNote];
+                slur = legatoSlides[startNote];
                 slur->setTick2(endTick);
                 slur->setEndElement(endNote->chord());
                 legatoSlides.erase(startNote);
                 legatoSlides[endNote] = slur;
             }
 
-            // TODO-gp: implement for editing too. Now works just for import.
             if (slide.second == SlideHammerOn::HammerOn) {
-                Measure* measure = startNote->chord()->measure();
+                HammerPull* hammerPull = nullptr;
+                if (hammerPullForSlur.find(slur) != hammerPullForSlur.end()) {
+                    hammerPull = hammerPullForSlur.at(slur);
+                } else {
+                    hammerPull = mu::engraving::Factory::createHammerPull(_score->dummy()->segment());
+                    hammerPull->setTrack(track);
+                    hammerPull->setSlur(slur);
+                    startNote->chord()->segment()->add(hammerPull);
+                    hammerPullForSlur.insert({slur, hammerPull});
+                }
 
-                auto midTick = (startTick + endTick) / 2;
-                Segment* segment = measure->getSegment(SegmentType::ChordRest, midTick);
-                StaffText* staffText = Factory::createStaffText(segment);
-                String hammerText = (startNote->pitch() > endNote->pitch()) ? u"P" : u"H";
-
-                staffText->setPlainText(hammerText);
-                staffText->setTrack(track);
-                segment->add(staffText);
+                hammerPull->addTechnic(startNote->pitch() < endNote->pitch() ? HammerPull::Technic::HammerOn : HammerPull::Technic::PullOff);
             }
         }
     }

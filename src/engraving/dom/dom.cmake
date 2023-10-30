@@ -125,6 +125,8 @@ set(DOM_SRC
     ${CMAKE_CURRENT_LIST_DIR}/guitarbend.h
     ${CMAKE_CURRENT_LIST_DIR}/hairpin.cpp
     ${CMAKE_CURRENT_LIST_DIR}/hairpin.h
+    ${CMAKE_CURRENT_LIST_DIR}/hammerpull.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/hammerpull.h
     ${CMAKE_CURRENT_LIST_DIR}/harmonicmark.cpp
     ${CMAKE_CURRENT_LIST_DIR}/harmonicmark.h
     ${CMAKE_CURRENT_LIST_DIR}/harmony.cpp

@@ -1020,7 +1020,7 @@ void SystemLayout::layoutSystemElements(System* system, LayoutContext& ctx)
     for (Segment* s : sl) {
         Measure* m = s->measure();
         for (EngravingItem* e : s->annotations()) {
-            if (e->isExpression()) {
+            if (e->isExpression() || e->isHammerPull()) {
                 TLayout::layoutItem(e, ctx);
                 if (e->addToSkyline()) {
                     system->staff(e->staffIdx())->skyline().add(e->shape().translate(e->pos() + s->pos() + m->pos()));

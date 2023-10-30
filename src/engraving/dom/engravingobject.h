@@ -93,6 +93,7 @@ class GuitarBendText;
 class HBox;
 class Hairpin;
 class HairpinSegment;
+class HammerPull;
 class HarmonicMark;
 class HarmonicMarkSegment;
 class Harmony;
@@ -448,6 +449,7 @@ public:
     CONVERT(GraceNotesGroup, GRACE_NOTES_GROUP)
     CONVERT(FretCircle, FRET_CIRCLE)
     CONVERT(StringTunings, STRING_TUNINGS)
+    CONVERT(HammerPull, HAMMER_PULL)
 #undef CONVERT
 
     virtual bool isEngravingItem() const { return false; }   // overridden in element.h
@@ -815,6 +817,7 @@ CONVERT(BagpipeEmbellishment)
 CONVERT(Sticking)
 CONVERT(GraceNotesGroup)
 CONVERT(FretCircle)
+CONVERT(HammerPull)
 CONVERT(DeadSlapped)
 CONVERT(StringTunings)
 #undef CONVERT

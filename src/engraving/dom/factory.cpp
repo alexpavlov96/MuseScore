@@ -51,6 +51,7 @@
 #include "gradualtempochange.h"
 #include "guitarbend.h"
 #include "hairpin.h"
+#include "hammerpull.h"
 #include "harmonicmark.h"
 #include "harmony.h"
 #include "harppedaldiagram.h"
@@ -226,6 +227,8 @@ EngravingItem* Factory::doCreateItem(ElementType type, EngravingItem* parent)
     case ElementType::TRIPLET_FEEL:      return new TripletFeel(parent->isSegment() ? toSegment(parent) : dummy->segment());
     case ElementType::FRET_CIRCLE:       return new FretCircle(parent->isChord() ? toChord(parent) : dummy->chord());
     case ElementType::STRING_TUNINGS:      return new StringTunings(parent->isSegment() ? toSegment(parent) : dummy->segment());
+    case ElementType::HAMMER_PULL:
+        return new HammerPull(parent->isSegment() ? toSegment(parent) : dummy->segment());
 
     case ElementType::LYRICSLINE:
     case ElementType::TEXTLINE_BASE:
@@ -640,6 +643,9 @@ TripletFeel* Factory::createTripletFeel(Segment * parent, TripletFeelType type, 
 
 CREATE_ITEM_IMPL(FretCircle, ElementType::FRET_CIRCLE, Chord, isAccessibleEnabled)
 COPY_ITEM_IMPL(FretCircle)
+
+CREATE_ITEM_IMPL(HammerPull, ElementType::HAMMER_PULL, Segment, isAccessibleEnabled)
+COPY_ITEM_IMPL(HammerPull)
 
 CREATE_ITEM_IMPL(Vibrato, ElementType::VIBRATO, EngravingItem, isAccessibleEnabled)
 

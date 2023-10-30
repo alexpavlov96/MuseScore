@@ -53,6 +53,7 @@
 
 #include "../../dom/guitarbend.h"
 
+#include "../../dom/hammerpull.h"
 #include "../../dom/harppedaldiagram.h"
 #include "../../dom/harmony.h"
 #include "../../dom/hairpin.h"
@@ -239,6 +240,7 @@ public:
     static void layoutHairpinSegment(HairpinSegment* item, LayoutContext& ctx);
     static void layoutHairpin(Hairpin* item, LayoutContext& ctx);
     static void fillHairpinSegmentShape(const HairpinSegment* item, HairpinSegment::LayoutData* ldata);
+    static void layoutHammerPull(HammerPull* item, HammerPull::LayoutData* ldata, LayoutContext& ctx);
     static void layoutHarpPedalDiagram(const HarpPedalDiagram* item, HarpPedalDiagram::LayoutData* ldata);
     static void layoutHarmonicMarkSegment(HarmonicMarkSegment* item, LayoutContext& ctx);
     static void layoutHarmony(const Harmony* item, Harmony::LayoutData* ldata, const LayoutContext& ctx);
