@@ -9,6 +9,7 @@
 #include "gpdrumsetresolver.h"
 #include "gpmastertracks.h"
 #include "../continiouselementsbuilder.h"
+#include "../guitarbendimporter.h"
 #include "types/fraction.h"
 
 #include "iengravingconfiguration.h"
@@ -84,7 +85,7 @@ private:
 
     void addTie(const GPNote* gpnote, Note* note, TieMap& ties);
     void addFretDiagram(const GPBeat* gpnote, ChordRest* note, const Context& ctx, bool asHarmony = true);
-    ChordRest* addChordRest(const GPBeat* beats, const Context& ctx);
+    ChordRest* addChordRest(const GPBeat* beat, const Context& ctx);
     void addOrnament(const GPNote* gpnote, Note* note);
     void addVibratoLeftHand(const GPNote* gpnote, Note* note);
     void addTrill(const GPNote* gpnote, Note* note);
@@ -99,8 +100,11 @@ private:
     void addPickScrape(const GPNote* gpnote, Note* note);
     void addLetRing(const GPNote* gpnote, Note* note);
     void addPalmMute(const GPNote* gpnote, Note* note);
+    void addGuitarBends();
+
     void collectContinuousSlide(const GPNote* gpnote, Note* note);
     void collectHammerOn(const GPNote* gpnote, Note* note);
+    mu::engraving::PitchValues bendPitchValuesForNote(const GPNote* gpnote);
     void addBend(const GPNote* gpnote, Note* note);
     void setPitch(Note* note, const GPNote::MidiPitch& midiPitch);
     void setTpc(Note* note, int accidental);
@@ -205,6 +209,7 @@ private:
 
     std::unique_ptr<GPDrumSetResolver> _drumResolver;
     std::unique_ptr<ContiniousElementsBuilder> m_continiousElementsBuilder;
+    std::unique_ptr<GuitarBendImporter> m_guitarBendImporter;
 };
 } // namespace mu::iex::guitarpro
 #endif // MU_IMPORTEXPORT_GPCONVERTER_H
