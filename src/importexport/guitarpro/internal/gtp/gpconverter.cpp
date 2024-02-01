@@ -19,6 +19,7 @@
 #include "engraving/dom/fingering.h"
 #include "engraving/dom/fret.h"
 #include "engraving/dom/fretcircle.h"
+#include "engraving/dom/guitarbend.h"
 #include "engraving/dom/glissando.h"
 #include "engraving/dom/gradualtempochange.h"
 #include "engraving/dom/instrchange.h"
@@ -252,6 +253,7 @@ GPConverter::GPConverter(Score* score, std::unique_ptr<GPDomModel>&& gpDom, cons
     _drumResolver = std::make_unique<GPDrumSetResolver>();
     _drumResolver->initGPDrum();
     m_continiousElementsBuilder = std::make_unique<ContiniousElementsBuilder>(_score);
+    m_guitarBendImporter = std::make_unique<GuitarBendImporter>(_score);
 }
 
 const std::unique_ptr<GPDomModel>& GPConverter::gpDom() const
@@ -344,7 +346,12 @@ void GPConverter::convert(const std::vector<std::unique_ptr<GPMasterBar> >& mast
 
     addTempoMap();
     addInstrumentChanges();
-    StretchedBend::prepareBends(m_stretchedBends);
+
+    if (engravingConfiguration()->guitarProImportExperimental()) {
+        StretchedBend::prepareBends(m_stretchedBends);
+    } else {
+        addGuitarBends();
+    }
 
     addFermatas();
     addContinuousSlideHammerOn();
@@ -1693,7 +1700,7 @@ Measure* GPConverter::addMeasure(const GPMasterBar* mB)
     return measure;
 }
 
-ChordRest* GPConverter::addChordRest(const GPBeat* beat, const Context& ctx)
+static Fraction getBeatDuration(const GPBeat* beat)
 {
     auto rhythm = [](GPRhythm::RhytmType rhythm) {
         if (rhythm == GPRhythm::RhytmType::Whole) {
@@ -1713,22 +1720,28 @@ ChordRest* GPConverter::addChordRest(const GPBeat* beat, const Context& ctx)
         }
     };
 
-    ChordRest* cr{ nullptr };
+    Fraction fr(1, rhythm(beat->lenth().second));
+    for (int dot = 1; dot <= beat->lenth().first; dot++) {
+        fr += Fraction(1, rhythm(beat->lenth().second) * 2 * dot);
+    }
+
+    return fr;
+}
+
+ChordRest* GPConverter::addChordRest(const GPBeat* beat, const Context& ctx)
+{
+    ChordRest* cr = nullptr;
     if (beat->isRest()) {
         cr = Factory::createRest(_score->dummy()->segment());
     } else {
         cr = Factory::createChord(_score->dummy()->segment());
     }
 
+    Fraction totalDuration = getBeatDuration(beat);
+
     cr->setTrack(ctx.curTrack);
-
-    Fraction fr(1, rhythm(beat->lenth().second));
-    for (int dot = 1; dot <= beat->lenth().first; dot++) {
-        fr += Fraction(1, rhythm(beat->lenth().second) * 2 * dot);
-    }
-
-    cr->setTicks(fr);
-    cr->setDurationType(TDuration(fr));
+    cr->setTicks(totalDuration);
+    cr->setDurationType(TDuration(totalDuration));
 
     return cr;
 }
@@ -2000,10 +2013,10 @@ void GPConverter::collectHammerOn(const GPNote* gpnote, Note* note)
     }
 }
 
-void GPConverter::addBend(const GPNote* gpnote, Note* note)
+PitchValues GPConverter::bendPitchValuesForNote(const GPNote* gpnote)
 {
     if (!gpnote->bend() || gpnote->bend()->isEmpty()) {
-        return;
+        return {};
     }
 
     using namespace mu::engraving;
@@ -2059,7 +2072,7 @@ void GPConverter::addBend(const GPNote* gpnote, Note* note)
     }
 
     if (pitchValues.size() < 2) {
-        return;
+        return {};
     }
 
     /// not adding "hold" on 0 pitch
@@ -2068,9 +2081,15 @@ void GPConverter::addBend(const GPNote* gpnote, Note* note)
     }))->pitch;
 
     if (maxPitch == 0) {
-        return;
+        return {};
     }
 
+    return pitchValues;
+}
+
+void GPConverter::addBend(const GPNote* gpnote, Note* note)
+{
+    PitchValues pitchValues = bendPitchValuesForNote(gpnote);
     if (engravingConfiguration()->guitarProImportExperimental()) {
         Chord* chord = toChord(note->parent());
         StretchedBend* stretchedBend = Factory::createStretchedBend(chord);
@@ -2082,10 +2101,7 @@ void GPConverter::addBend(const GPNote* gpnote, Note* note)
         chord->add(stretchedBend);
         m_stretchedBends.push_back(stretchedBend);
     } else {
-        Bend* bend = Factory::createBend(note);
-        bend->setPoints(pitchValues);
-        bend->setTrack(note->track());
-        note->add(bend);
+        m_guitarBendImporter->importBendForNote(note, pitchValues);
     }
 }
 
@@ -2984,5 +3000,54 @@ void GPConverter::setBeamMode(const GPBeat* beat, ChordRest* cr, Measure* measur
 
     cr->setBeamMode(m_previousBeamMode);
     m_previousBeamMode = beamMode;
+}
+
+void GPConverter::addGuitarBends()
+{
+    m_guitarBendImporter->prepareForImport();
+
+    for (Chord* chord : m_guitarBendImporter->chordsWithBends()) {
+        std::vector<Fraction> chordsDurations = m_guitarBendImporter->chordsDurations(chord->track(), chord->tick());
+        if (chordsDurations.empty()) {
+            LOGE() << "@# ERROR!";
+            continue;
+        }
+
+        LOGE() << "@# next chord : " << chord->tick().ticks() << ", duration = " << chord->ticks().ticks();
+        for (const auto& fr : chordsDurations) {
+            LOGE() << "@# next lenght : " << fr.ticks();
+        }
+
+        Fraction newMainChordDuration = chordsDurations.front();
+        chord->setTicks(newMainChordDuration);
+        chord->setDurationType(TDuration(newMainChordDuration));
+        Fraction currentTick = chord->tick() + chord->ticks();
+        Measure* measure = chord->measure();
+        m_guitarBendImporter->createGuitarBends(chord->upNote());
+
+        for (size_t i = 1; i < chordsDurations.size(); i++) {
+            Segment* curSegment = measure->getSegment(SegmentType::ChordRest, currentTick);
+
+            Fraction currentChordDuration = chordsDurations[i];
+            curSegment->setTicks(currentChordDuration);
+
+            Chord *currentChord = Factory::createChord(_score->dummy()->segment());
+            currentChord->setTrack(chord->track());
+            currentChord->setTicks(currentChordDuration);
+            currentChord->setDurationType(currentChordDuration);
+            curSegment->add(currentChord);
+
+            // (TODO: только 1 нота)
+            Note* newChordNote = mu::engraving::Factory::createNote(currentChord);
+            newChordNote->setTrack(chord->track());
+            currentChord->add(newChordNote);
+            newChordNote->setPitch(chord->upNote()->pitch()); // TODO: 1 нота
+            newChordNote->setTpcFromPitch();
+
+            m_guitarBendImporter->createGuitarBends(newChordNote);
+
+            currentTick += currentChordDuration;
+        }
+    }
 }
 } // namespace mu::iex::guitarpro

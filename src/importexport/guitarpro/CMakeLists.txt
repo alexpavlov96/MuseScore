@@ -39,6 +39,8 @@ set(MODULE_SRC
     ${CMAKE_CURRENT_LIST_DIR}/internal/importptb.h
     ${CMAKE_CURRENT_LIST_DIR}/internal/continiouselementsbuilder.cpp
     ${CMAKE_CURRENT_LIST_DIR}/internal/continiouselementsbuilder.h
+    ${CMAKE_CURRENT_LIST_DIR}/internal/guitarbendimporter.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/internal/guitarbendimporter.h
     ${CMAKE_CURRENT_LIST_DIR}/internal/utils.cpp
     ${CMAKE_CURRENT_LIST_DIR}/internal/utils.h
 

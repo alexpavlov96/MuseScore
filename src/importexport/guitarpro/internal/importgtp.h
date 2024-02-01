@@ -31,6 +31,7 @@
 
 #include "gtp/gp67dombuilder.h"
 #include "continiouselementsbuilder.h"
+#include "guitarbendimporter.h"
 #include "engraving/types/types.h"
 #include "engraving/engravingerrors.h"
 
@@ -282,7 +283,8 @@ protected:
     void readVolta(GPVolta*, Measure*);
     void readBend(Note*);
     std::vector<mu::engraving::PitchValue> readBendDataFromFile();
-    void createBend(Note* note, std::vector<mu::engraving::PitchValue>& bendData);
+    void createBend(Note* note, const std::vector<mu::engraving::PitchValue>& bendData);
+    void addGuitarBends();
     virtual bool readMixChange(Measure* measure);
     virtual int readBeatEffects(int track, mu::engraving::Segment*) = 0;
     void readLyrics();
@@ -325,6 +327,7 @@ public:
     size_t measures = 0;
     std::vector<GpBar> bars;
     std::unique_ptr<ContiniousElementsBuilder> m_continiousElementsBuilder;
+    std::unique_ptr<GuitarBendImporter> m_guitarBendImporter;
 
     enum class GuitarProError : char {
         GP_NO_ERROR, GP_UNKNOWN_FORMAT,

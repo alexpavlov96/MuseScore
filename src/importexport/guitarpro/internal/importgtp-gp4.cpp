@@ -615,6 +615,7 @@ int GuitarPro4::convertGP4SlideNum(int sl)
 bool GuitarPro4::read(IODevice* io)
 {
     m_continiousElementsBuilder = std::make_unique<ContiniousElementsBuilder>(score);
+    m_guitarBendImporter = std::make_unique<GuitarBendImporter>(score);
     f      = io;
     curPos = 30;
 
@@ -1187,7 +1188,11 @@ bool GuitarPro4::read(IODevice* io)
     }
 
     m_continiousElementsBuilder->addElementsToScore();
-    StretchedBend::prepareBends(m_stretchedBends);
+    if (engravingConfiguration()->guitarProImportExperimental()) {
+        StretchedBend::prepareBends(m_stretchedBends);
+    } else {
+        addGuitarBends();
+    }
 
     return true;
 }

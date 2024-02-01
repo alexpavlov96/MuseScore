@@ -621,7 +621,7 @@ std::vector<PitchValue> GuitarPro::readBendDataFromFile()
     return bendData;
 }
 
-void GuitarPro::createBend(Note* note, std::vector<PitchValue>& bendData)
+void GuitarPro::createBend(Note* note, const std::vector<PitchValue>& bendData)
 {
     if (bendData.size() < 2) {
         return;
@@ -637,9 +637,9 @@ void GuitarPro::createBend(Note* note, std::vector<PitchValue>& bendData)
     }
 
     bool useStretchedBends = engravingConfiguration()->useStretchedBends();
+    Chord* chord = toChord(note->parent());
 
     if (useStretchedBends) {
-        Chord* chord = toChord(note->parent());
         StretchedBend* stretchedBend = Factory::createStretchedBend(chord);
         stretchedBend->setPitchValues(bendData);
         stretchedBend->setTrack(note->track());
@@ -648,10 +648,7 @@ void GuitarPro::createBend(Note* note, std::vector<PitchValue>& bendData)
         chord->add(stretchedBend);
         m_stretchedBends.push_back(stretchedBend);
     } else {
-        Bend* bend = Factory::createBend(note);
-        bend->setPoints(bendData);
-        bend->setTrack(note->track());
-        note->add(bend);
+        m_guitarBendImporter->importBendForNote(note, bendData);
     }
 }
 
@@ -664,6 +661,61 @@ void GuitarPro::readBend(Note* note)
 {
     std::vector<PitchValue> bendData = readBendDataFromFile();
     createBend(note, bendData);
+}
+
+// copied from gpconverter.cpp
+void GuitarPro::addGuitarBends()
+{
+    if (!m_guitarBendImporter) {
+        LOGE() << "guitar bend importer is not created";
+        return;
+    }
+
+    m_guitarBendImporter->prepareForImport();
+
+    for (Chord* chord : m_guitarBendImporter->chordsWithBends()) {
+        std::vector<Fraction> chordsDurations = m_guitarBendImporter->chordsDurations(chord->track(), chord->tick());
+        if (chordsDurations.empty()) {
+            LOGE() << "@# ERROR!";
+            continue;
+        }
+
+        LOGE() << "@# next chord : " << chord->tick().ticks() << ", duration = " << chord->ticks().ticks();
+        for (const auto& fr : chordsDurations) {
+            LOGE() << "@# next lenght : " << fr.ticks();
+        }
+
+        Fraction newMainChordDuration = chordsDurations.front();
+        chord->setTicks(newMainChordDuration);
+        chord->setDurationType(TDuration(newMainChordDuration));
+        Fraction currentTick = chord->tick() + chord->ticks();
+        Measure* measure = chord->measure();
+        m_guitarBendImporter->createGuitarBends(chord->upNote());
+
+        for (size_t i = 1; i < chordsDurations.size(); i++) {
+            Segment* curSegment = measure->getSegment(SegmentType::ChordRest, currentTick);
+
+            Fraction currentChordDuration = chordsDurations[i];
+            curSegment->setTicks(currentChordDuration);
+
+            Chord *currentChord = Factory::createChord(score->dummy()->segment());
+            currentChord->setTrack(chord->track());
+            currentChord->setTicks(currentChordDuration);
+            currentChord->setDurationType(currentChordDuration);
+            curSegment->add(currentChord);
+
+            // (TODO: только 1 нота)
+            Note* newChordNote = mu::engraving::Factory::createNote(currentChord);
+            newChordNote->setTrack(chord->track());
+            currentChord->add(newChordNote);
+            newChordNote->setPitch(chord->upNote()->pitch()); // TODO: 1 нота
+            newChordNote->setTpcFromPitch();
+
+            m_guitarBendImporter->createGuitarBends(newChordNote);
+
+            currentTick += currentChordDuration;
+        }
+    }
 }
 
 //---------------------------------------------------------
@@ -1008,6 +1060,7 @@ void GuitarPro::applyBeatEffects(Chord* chord, int beatEffect, bool& hasVibratoL
 bool GuitarPro1::read(IODevice* io)
 {
     m_continiousElementsBuilder = std::make_unique<ContiniousElementsBuilder>(score);
+    m_guitarBendImporter = std::make_unique<GuitarBendImporter>(score);
     f      = io;
     curPos = 30;
 
@@ -1370,6 +1423,8 @@ void GuitarPro::createSlur(bool hasSlur, staff_idx_t staffIdx, ChordRest* cr)
 bool GuitarPro2::read(IODevice* io)
 {
     m_continiousElementsBuilder = std::make_unique<ContiniousElementsBuilder>(score);
+    m_guitarBendImporter = std::make_unique<GuitarBendImporter>(score);
+
     f      = io;
     curPos = 30;
 
@@ -2082,6 +2137,8 @@ int GuitarPro1::readBeatEffects(int, Segment*)
 bool GuitarPro3::read(IODevice* io)
 {
     m_continiousElementsBuilder = std::make_unique<ContiniousElementsBuilder>(score);
+    m_guitarBendImporter = std::make_unique<GuitarBendImporter>(score);
+
     f      = io;
     curPos = 30;
 
@@ -2657,7 +2714,11 @@ bool GuitarPro3::read(IODevice* io)
     }
 
     m_continiousElementsBuilder->addElementsToScore();
-    StretchedBend::prepareBends(m_stretchedBends);
+    if (engravingConfiguration()->guitarProImportExperimental()) {
+        StretchedBend::prepareBends(m_stretchedBends);
+    } else {
+        addGuitarBends();
+    }
 
     return true;
 }
