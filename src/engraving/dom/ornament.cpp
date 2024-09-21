@@ -28,7 +28,7 @@
 #include "note.h"
 #include "ornament.h"
 #include "score.h"
-#include "shape.h"
+#include "infrastructure/shape.h"
 #include "staff.h"
 #include "utils.h"
 

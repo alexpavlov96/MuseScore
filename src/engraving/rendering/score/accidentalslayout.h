@@ -22,7 +22,7 @@
 #ifndef MU_ENGRAVING_ACCIDENTALSLAYOUT_DEV_H
 #define MU_ENGRAVING_ACCIDENTALSLAYOUT_DEV_H
 
-#include "shape.h"
+#include "infrastructure/shape.h"
 
 namespace mu::engraving {
 class Accidental;

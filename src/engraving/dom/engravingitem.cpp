@@ -59,7 +59,7 @@
 #include "page.h"
 #include "score.h"
 #include "segment.h"
-#include "shape.h"
+#include "infrastructure/shape.h"
 #include "sig.h"
 #include "staff.h"
 #include "stafflines.h"

@@ -75,7 +75,7 @@ public:
     const std::shared_ptr<I>& get() const
     {
         if (!m_i) {
-            const std::lock_guard<std::mutex> lock(StaticMutex::mutex);
+            // const std::lock_guard<std::mutex> lock(StaticMutex::mutex);
             if (!m_i) {
                 static std::string_view module = "";
                 m_i = _ioc(iocContext())->template resolve<I>(module);

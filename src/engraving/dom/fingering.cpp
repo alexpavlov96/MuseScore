@@ -29,7 +29,7 @@
 #include "measure.h"
 #include "note.h"
 #include "part.h"
-#include "skyline.h"
+#include "infrastructure/skyline.h"
 #include "staff.h"
 #include "stem.h"
 #include "system.h"

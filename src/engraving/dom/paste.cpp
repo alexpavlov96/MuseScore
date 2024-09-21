@@ -22,7 +22,7 @@
 
 #include "io/buffer.h"
 
-#include "imimedata.h"
+#include "infrastructure/imimedata.h"
 
 #include "rw/read400/tread.h"
 #include "rw/rwregister.h"

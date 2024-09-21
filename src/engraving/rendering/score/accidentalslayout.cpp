@@ -24,7 +24,7 @@
 #include "accidentalslayout.h"
 #include "layoutcontext.h"
 #include "../paddingtable.h"
-#include "shape.h"
+#include "infrastructure/shape.h"
 #include "tlayout.h"
 
 #include "dom/accidental.h"
