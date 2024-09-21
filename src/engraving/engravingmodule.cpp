@@ -65,7 +65,7 @@
 #include "devtools/drawdata/diagnosticdrawprovider.h"
 #endif
 
-#include "muse_framework_config.h"
+// #include "muse_framework_config.h"
 
 #include "log.h"
 

@@ -33,7 +33,7 @@
 #include "internal/fontsdatabase.h"
 #endif
 
-#include "muse_framework_config.h"
+// #include "muse_framework_config.h"
 
 using namespace muse::draw;
 using namespace muse::modularity;

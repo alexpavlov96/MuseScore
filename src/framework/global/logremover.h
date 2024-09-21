@@ -22,7 +22,7 @@
 #ifndef MU_LOGREMOVER_H
 #define MU_LOGREMOVER_H
 
-#include "muse_framework_config.h"
+// #include "muse_framework_config.h"
 
 #ifdef MUSE_ENABLE_UNIT_TESTS
 #include <gtest/gtest_prod.h>
