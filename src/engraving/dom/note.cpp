@@ -2133,6 +2133,15 @@ void Note::updateAccidental(AccidentalState* as)
 {
     int absLine = absStep(tpc(), epitch());
 
+    if (deadNote()) {
+        if (m_accidental) {
+            score()->undoRemoveElement(m_accidental);
+        }
+        as->setForceRestateAccidental(absLine, false);
+        updateRelLine(absLine, true);
+        return;
+    }
+
     // don't touch accidentals that don't concern tpc such as
     // quarter tones
     if (!(m_accidental && Accidental::isMicrotonal(m_accidental->accidentalType()))) {
