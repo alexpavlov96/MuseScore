@@ -2139,6 +2139,15 @@ void Note::updateAccidental(AccidentalState* as)
 {
     int absLine = absStep(tpc(), epitch());
 
+    if (deadNote()) {
+        if (m_accidental) {
+            score()->undoRemoveElement(m_accidental);
+        }
+        as->setForceRestateAccidental(absLine, false);
+        updateRelLine(absLine, true);
+        return;
+    }
+
     // Ensure m_centOffset and microtonal accidental match (they can mismatch when switching from TAB)
     if (muse::RealIsNull(m_centOffset)) {
         if (m_accidental && !muse::RealIsNull(Accidental::subtype2centOffset(m_accidental->accidentalType()))) {
@@ -4114,6 +4123,10 @@ int Note::stringOrLine() const
 
 bool Note::transposeDiatonic(int interval, bool keepAlterations, bool useDoubleAccidentals)
 {
+    if (deadNote()) {
+        return true;
+    }
+
     // compute note current absolute step
     int alter;
     Fraction tick = chord()->segment()->tick();
@@ -4158,6 +4171,10 @@ bool Note::transposeDiatonic(int interval, bool keepAlterations, bool useDoubleA
 
 bool Note::transpose(Interval interval, bool useDoubleSharpsFlats)
 {
+    if (deadNote()) {
+        return true;
+    }
+
     int npitch = pitch() + interval.chromatic;
     if (!pitchIsValid(npitch)) {
         return false;
