@@ -85,6 +85,12 @@ private:
     void        sortChordNotes(std::map<int, Note*>& sortedNotes, const Chord* chord, int pitchOffset, int* count) const;
     void        sortChordNotesUseSameString(const Chord* chord, int pitchOffset) const;
 
+    //! Only when negativeFretsAllowed: move note to an unused string using fret below open or above maxFret,
+    //! picking the raw fret closest to the normal range. Updates @p bUsed and string/fret out-params.
+    bool        tryResolveStringConflictWithOutOfRangeFret(const Note* note, int pitchOffset, int numStrings,
+                                                           std::vector<int>& bUsed,
+                                                           int& nNewString, int& nNewFret) const;
+
     //      std::vector<int>  stringTable { 40, 45, 50, 55, 59, 64 };   // guitar is default
     //      int         _frets = 19;
     std::vector<instrString> m_stringTable;                      // no strings by default

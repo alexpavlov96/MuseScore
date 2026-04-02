@@ -251,6 +251,10 @@ int transposeTpcDiatonicByKey(int tpc, int steps, Key key, bool keepAlteredDegre
 
 bool Score::transpose(Note* n, Interval interval, bool useDoubleSharpsFlats)
 {
+    if (n->deadNote()) {
+        return true;
+    }
+    
     int npitch;
     int ntpc1, ntpc2;
     transposeInterval(n->pitch(), n->tpc1(), &npitch, &ntpc1, interval, useDoubleSharpsFlats);
@@ -677,6 +681,10 @@ void Score::transposeSemitone(int step)
 
 void Note::transposeDiatonic(int interval, bool keepAlterations, bool useDoubleAccidentals)
 {
+    if (deadNote()) {
+        return;
+    }
+    
     // compute note current absolute step
     int alter;
     Fraction tick = chord()->segment()->tick();

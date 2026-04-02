@@ -22,7 +22,9 @@
 
 #include "stringdata.h"
 
+#include <climits>
 #include <map>
+#include <vector>
 
 #include "defer.h"
 
@@ -122,6 +124,46 @@ int StringData::fret(int pitch, int string, Staff* staff) const
     return fret(pitch, string, pitchOffsetAt(staff));
 }
 
+bool StringData::tryResolveStringConflictWithOutOfRangeFret(const Note* note, int pitchOffset, int numStrings,
+                                                            std::vector<int>& bUsed,
+                                                            int& nNewString, int& nNewFret) const
+{
+    const int concertPitch = note->pitch() + pitchOffset;
+    int bestString     = -1;
+    int bestDistance   = INT32_MAX;
+    int bestRawFret    = 0;
+
+    for (int nTempString = 0; nTempString < numStrings; nTempString++) {
+        if (bUsed[static_cast<size_t>(nTempString)] >= 1) {
+            continue;
+        }
+        const int openPitch = m_stringTable.at(m_stringTable.size() - nTempString - 1).pitch;
+        const int rawFret   = concertPitch - openPitch;
+        int distance        = 0;
+        if (rawFret < 0) {
+            distance = -rawFret;
+        } else if (rawFret > m_frets) {
+            distance = rawFret - m_frets;
+        } else {
+            continue; // in-range fret — already tried by the standard conflict loop
+        }
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            bestRawFret  = rawFret;
+            bestString   = nTempString;
+        }
+    }
+
+    if (bestString < 0) {
+        return false;
+    }
+    bUsed[static_cast<size_t>(nNewString)]--;
+    bUsed[static_cast<size_t>(bestString)]++;
+    nNewFret   = bestRawFret;
+    nNewString = bestString;
+    return true;
+}
+
 //---------------------------------------------------------
 //   fretChords
 //    Assigns fretting to all the notes of each chord in the same segment of chord
@@ -209,6 +251,10 @@ void StringData::fretChords(Chord* chord) const
         nString = nNewString = note->string();
         nFret   = nNewFret   = note->fret();
         note->setFretConflict(false);           // assume no conflicts on this note
+        if (note->deadNote()) {
+            continue;
+        }
+        
         // if no fretting (any invalid fretting has been erased by sortChordNotes() )
         if (nString == INVALID_STRING_INDEX /*|| nFret == INVALID_FRET_INDEX || getPitch(nString, nFret) != note->pitch()*/) {
             // get a new fretting
@@ -244,6 +290,10 @@ void StringData::fretChords(Chord* chord) const
                     nNewString = nTempString;
                     break;
                 }
+            }
+
+            if (bUsed[nNewString] > 1 && note->configuration()->negativeFretsAllowed()) {
+                tryResolveStringConflictWithOutOfRangeFret(note, pitchOffset, strings, bUsed, nNewString, nNewFret);
             }
         }
 
@@ -428,13 +478,15 @@ void StringData::sortChordNotesUseSameString(const Chord* chord, int pitchOffset
 
     bool anyReset = false;
     for (Note* note : chord->notes()) {
-        if (note->displayFret() != Note::DisplayFretOption::NoHarmonic) {
+        if (note->displayFret() != Note::DisplayFretOption::NoHarmonic || note->deadNote() || note->negativeFretUsed()) {
             continue;
         }
+        
         if (note->string() < 0 || note->fret() < 0) {
             anyReset = true;
             continue;
         }
+        
         int pitch = getPitch(note->string(), note->fret() + capoFret, pitchOffset);
         int newFret = note->fret() + note->pitch() - pitch;
         if (newFret < 0) {
@@ -443,14 +495,12 @@ void StringData::sortChordNotesUseSameString(const Chord* chord, int pitchOffset
             note->setFret(newFret);
         }
     }
-
-    // If any note in the chord couldn't keep its string, reset ALL notes
-    // so fretChords/convertPitch assigns the entire chord optimally.
     if (anyReset) {
         for (Note* note : chord->notes()) {
-            if (note->displayFret() != Note::DisplayFretOption::NoHarmonic) {
+            if (note->displayFret() != Note::DisplayFretOption::NoHarmonic || note->deadNote() || note->negativeFretUsed()) {
                 continue;
             }
+            
             note->setString(INVALID_STRING_INDEX);
             note->setFret(INVALID_FRET_INDEX);
         }
@@ -491,7 +541,7 @@ void StringData::sortChordNotes(std::map<int, Note*>& sortedNotes, const Chord* 
         int pitch = getPitch(string, noteFret + capoFret, pitchOffset);
         // if note not fretted yet or current fretting no longer valid,
         // use most convenient string as key
-        if (!note->negativeFretUsed() && (string <= INVALID_STRING_INDEX || noteFret <= INVALID_FRET_INDEX
+        if (!note->deadNote() && !note->negativeFretUsed() && (string <= INVALID_STRING_INDEX || noteFret <= INVALID_FRET_INDEX
                                           || (pitchIsValid(pitch) && pitch != note->pitch()))) {
             note->setString(INVALID_STRING_INDEX);
             note->setFret(INVALID_FRET_INDEX);
