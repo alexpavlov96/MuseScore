@@ -236,6 +236,8 @@ void StringData::fretChords(Chord* chord) const
         }
     }
 
+    int pitchOffset = pitchOffsetAt(chord->staff(), chord->tick());
+
     // scan chord notes from highest, matching with strings from the highest
     for (const auto& p : sortedNotes) {
         Note* note = p.second;
@@ -290,6 +292,11 @@ void StringData::fretChords(Chord* chord) const
             }
         }
 
+        // If still conflicted, try out-of-range frets (negative or above max)
+        if (bUsed[nNewString] > 1 && note->configuration()->negativeFretsAllowed()) {
+            tryResolveStringConflictWithOutOfRangeFret(note, pitchOffset, strings, bUsed, nNewString, nNewFret);
+        }
+
         // TODO : try to optimize used fret range, avoiding excessively open positions
 
         // if fretting did change, store as a fret change
@@ -301,11 +308,68 @@ void StringData::fretChords(Chord* chord) const
         }
     }
 
+    if (!sortedNotes.empty() && sortedNotes.begin()->second->configuration()->negativeFretsAllowed()) {
+        optimizeNegativeFretNoteAssignments(chord, sortedNotes, bUsed, pitchOffset, strings);
+    }
+
     // check for any remaining fret conflict
     for (auto& p : sortedNotes) {
         Note* note = p.second;
         if (!note->negativeFretUsed() && (note->string() == -1 || bUsed[note->string()] > 1)) {
             note->setFretConflict(true);
+        }
+    }
+}
+
+//---------------------------------------------------------
+//   optimizeNegativeFretNoteAssignments
+//    Only used when negativeFretsAllowed() is true (see caller in fretChords).
+//    For notes with negativeFretUsed(), if a valid (non-negative) fret or a
+//    closer (less negative) fret exists on an unused string, move the note there.
+//    Process from lowest pitch first (reverse iteration) so notes with the fewest
+//    alternatives keep their strings.
+//---------------------------------------------------------
+
+void StringData::optimizeNegativeFretNoteAssignments(Chord* chord, const std::map<int, Note*>& sortedNotes,
+                                                     std::vector<int>& bUsed, int pitchOffset, int numStrings) const
+{
+    for (auto it = sortedNotes.rbegin(); it != sortedNotes.rend(); ++it) {
+        Note* note = it->second;
+        if (!note->negativeFretUsed()) {
+            continue;
+        }
+        int currentString = note->string();
+        if (currentString < 0 || currentString >= numStrings) {
+            continue;
+        }
+
+        int bestString = -1;
+        int bestFret = note->fret();
+        int concertPitch = note->pitch() + pitchOffset;
+
+        for (int s = 0; s < numStrings; s++) {
+            if (s == currentString || bUsed[s] >= 1) {
+                continue;
+            }
+            int f = fret(note->pitch(), s, pitchOffsetAt(chord->staff(), chord->tick(), s));
+            if (f != INVALID_FRET_INDEX && f >= 0) {
+                bestString = s;
+                bestFret = f;
+                break;
+            }
+            int openPitch = m_stringTable.at(m_stringTable.size() - s - 1).pitch;
+            int rawFret = concertPitch - openPitch;
+            if (rawFret < 0 && rawFret > bestFret) {
+                bestString = s;
+                bestFret = rawFret;
+            }
+        }
+
+        if (bestString >= 0 && bestFret > note->fret()) {
+            bUsed[currentString]--;
+            bUsed[bestString]++;
+            note->undoChangeProperty(Pid::FRET, bestFret);
+            note->undoChangeProperty(Pid::STRING, bestString);
         }
     }
 }
@@ -509,6 +573,47 @@ int StringData::fret(int pitch, int string, int pitchOffset) const
         return INVALID_FRET_INDEX;
     }
     return fret;
+}
+
+bool StringData::tryResolveStringConflictWithOutOfRangeFret(const Note* note, int pitchOffset, int numStrings,
+                                                            std::vector<int>& bUsed, int& nNewString, int& nNewFret) const
+{
+    const int concertPitch = note->pitch() + pitchOffset;
+    int bestString = -1;
+    int bestDistance = INT32_MAX;
+    int bestRawFret = 0;
+
+    for (int nTempString = 0; nTempString < numStrings; nTempString++) {
+        if (bUsed[static_cast<size_t>(nTempString)] >= 1) {
+            continue;
+        }
+        const int openPitch = m_stringTable.at(m_stringTable.size() - nTempString - 1).pitch;
+        const int rawFret = concertPitch - openPitch;
+        int distance = 0;
+        if (rawFret < 0) {
+            distance = -rawFret;
+        } else if (rawFret > m_frets) {
+            distance = rawFret - m_frets;
+        } else {
+            continue;       // in-range fret — already tried by normal conflict resolution
+        }
+
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            bestRawFret = rawFret;
+            bestString = nTempString;
+        }
+    }
+
+    if (bestString < 0) {
+        return false;
+    }
+
+    bUsed[static_cast<size_t>(nNewString)]--;
+    bUsed[static_cast<size_t>(bestString)]++;
+    nNewFret = bestRawFret;
+    nNewString = bestString;
+    return true;
 }
 
 //---------------------------------------------------------

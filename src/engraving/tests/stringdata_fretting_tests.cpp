@@ -142,11 +142,20 @@ TEST_F(Engraving_StringDataFrettingTests, preferSameStringKeepsOriginalStrings)
     auto notes = collectTabNotes(score);
     ASSERT_EQ(notes.size(), 2u);
 
-    // Notes come back highest-pitch first (chord->notes() order)
-    EXPECT_EQ(notes[0].string, 2);
-    EXPECT_EQ(notes[0].fret, 6);
-    EXPECT_EQ(notes[1].string, 3);
-    EXPECT_EQ(notes[1].fret, 6);
+    // chord->notes() order is noteIsBefore (tab: line / staff position), not pitch-high-first.
+    const TabNote* str2 = nullptr;
+    const TabNote* str3 = nullptr;
+    for (const auto& n : notes) {
+        if (n.string == 2) {
+            str2 = &n;
+        } else if (n.string == 3) {
+            str3 = &n;
+        }
+    }
+    ASSERT_NE(str2, nullptr) << "expected a note on string 2 after transpose";
+    ASSERT_NE(str3, nullptr) << "expected a note on string 3 after transpose";
+    EXPECT_EQ(str2->fret, 6);
+    EXPECT_EQ(str3->fret, 6);
 
     delete score;
 }
@@ -180,6 +189,44 @@ TEST_F(Engraving_StringDataFrettingTests, validFretNotDisplacedByNegativeFretInC
 
     ASSERT_NE(str5note, nullptr) << "note on string 5 should remain on string 5";
     EXPECT_EQ(str5note->fret, -1);
+
+    delete score;
+}
+
+// Transpose -6: both notes get negative frets on their original strings,
+// but valid (non-negative) frets exist on lower strings. The negative fret
+// optimization pass should move them there.
+TEST_F(Engraving_StringDataFrettingTests, noNegativeFretWhenLowerStringAvailable)
+{
+    MasterScore* score = ScoreRW::readScore(DATA_DIR + "same_string.mscx");
+    ASSERT_TRUE(score);
+
+    transposeScore(score, -6);
+
+    auto notes = collectTabNotes(score);
+    ASSERT_EQ(notes.size(), 2u);
+    for (size_t i = 0; i < notes.size(); ++i) {
+        EXPECT_GE(notes[i].fret, 0)
+            << "note " << i << " got negative fret " << notes[i].fret
+            << " but lower strings are available";
+    }
+
+    delete score;
+}
+
+// Transpose -7: both notes end up with negative frets and could land on the
+// same string. They must be placed on DIFFERENT strings.
+TEST_F(Engraving_StringDataFrettingTests, chordNotesOnDifferentStringsWithNegativeFrets)
+{
+    MasterScore* score = ScoreRW::readScore(DATA_DIR + "low_frets.mscx");
+    ASSERT_TRUE(score);
+
+    transposeScore(score, -7);
+
+    auto notes = collectTabNotes(score);
+    ASSERT_EQ(notes.size(), 2u);
+    EXPECT_NE(notes[0].string, notes[1].string)
+        << "chord notes share a string after transpose";
 
     delete score;
 }
