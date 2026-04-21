@@ -230,3 +230,31 @@ TEST_F(Engraving_StringDataFrettingTests, chordNotesOnDifferentStringsWithNegati
 
     delete score;
 }
+
+// Transpose -11: string 0 fret 10 + string 1 fret 12.
+// Keeping notes on original strings would give string 0 fret -1, string 1 fret 1.
+// The negative-fret note has valid frets on lower strings, so the whole chord
+// should be reset and reassigned for a compact fretting (string 1 fret 4,
+// string 2 fret 5) instead of the suboptimal string 1 fret 1, string 2 fret 8.
+TEST_F(Engraving_StringDataFrettingTests, chordResetWhenNegativeFretHasValidAlternative)
+{
+    MasterScore* score = ScoreRW::readScore(DATA_DIR + "high_frets_two_strings.mscx");
+    ASSERT_TRUE(score);
+
+    transposeScore(score, -11);
+
+    auto notes = collectTabNotes(score);
+    ASSERT_EQ(notes.size(), 2u);
+
+    // Find notes by pitch: 74-11=63 and 71-11=60
+    const TabNote* noteHigh = notes[0].pitch > notes[1].pitch ? &notes[0] : &notes[1];
+    const TabNote* noteLow  = notes[0].pitch > notes[1].pitch ? &notes[1] : &notes[0];
+
+    // Compact fretting: string 1 fret 4 (pitch 63), string 2 fret 5 (pitch 60)
+    EXPECT_EQ(noteHigh->string, 1) << "high note should be on string 1";
+    EXPECT_EQ(noteHigh->fret, 4) << "high note should be at fret 4";
+    EXPECT_EQ(noteLow->string, 2) << "low note should be on string 2";
+    EXPECT_EQ(noteLow->fret, 5) << "low note should be at fret 5";
+
+    delete score;
+}

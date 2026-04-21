@@ -624,7 +624,8 @@ bool StringData::tryResolveStringConflictWithOutOfRangeFret(const Note* note, in
 
 void StringData::sortChordNotesUseSameString(const Chord* chord, int pitchOffset) const
 {
-    int capoFret = chord->staff()->capo(chord->tick()).fretPosition;
+    const CapoParams& capo = chord->staff()->capo(chord->tick());
+    int capoFret = capo.fretPosition;
 
     bool anyReset = false;
     for (Note* note : chord->notes()) {
@@ -644,7 +645,6 @@ void StringData::sortChordNotesUseSameString(const Chord* chord, int pitchOffset
         int pitch = getPitch(note->string(), note->fret() + capoFret, pitchOffset);
         int newFret = note->fret() + note->pitch() - pitch;
         if (newFret < 0) {
-            // When negative frets are allowed, keep the note on its string
             if (note->configuration()->negativeFretsAllowed()) {
                 note->setFret(newFret);
             } else {
@@ -655,8 +655,28 @@ void StringData::sortChordNotesUseSameString(const Chord* chord, int pitchOffset
         }
     }
 
-    // If any note in the chord couldn't keep its string, reset ALL notes
-    // so fretChords/convertPitch assigns the entire chord optimally.
+    // When negativeFretsAllowed kept a note with a negative fret, check if a
+    // valid (non-negative) fret exists on any string. If so, resetting the
+    // chord lets fretChords find a more compact arrangement.
+    if (!anyReset) {
+        for (Note* note : chord->notes()) {
+            if (note->displayFret() != Note::DisplayFretOption::NoHarmonic
+                || note->deadNote() || note->negativeFretUsed()) {
+                continue;
+            }
+            if (note->fret() < 0) {
+                int tempString, tempFret;
+                if (convertPitch(note->pitch(), pitchOffset, &tempString, &tempFret, capo)) {
+                    anyReset = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Reset notes so fretChords/convertPitch assigns the chord optimally.
+    // Preserve negative-fret notes that have no valid alternative — their
+    // negative fret is the only option.
     if (anyReset) {
         for (Note* note : chord->notes()) {
             if (note->displayFret() != Note::DisplayFretOption::NoHarmonic) {
@@ -667,6 +687,12 @@ void StringData::sortChordNotesUseSameString(const Chord* chord, int pitchOffset
             }
             if (note->negativeFretUsed()) {
                 continue;
+            }
+            if (note->fret() < 0) {
+                int tempString, tempFret;
+                if (!convertPitch(note->pitch(), pitchOffset, &tempString, &tempFret, capo)) {
+                    continue;
+                }
             }
             note->setString(INVALID_STRING_INDEX);
             note->setFret(INVALID_FRET_INDEX);
