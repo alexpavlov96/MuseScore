@@ -25,6 +25,8 @@
 #include <QImage>
 
 #include "draw/painter.h"
+#include "draw/bufferedpaintprovider.h"
+#include "draw/utils/drawdatajson.h"
 
 #include "draw/internal/qpainterprovider.h"
 
@@ -155,4 +157,43 @@ TEST_F(Draw_PainterTests, Painter_SaveRestore)
     EXPECT_EQ(painter.worldTransform(), worldTransform);
 
     EXPECT_EQ(painter.provider()->transform(), worldTransform * expectedViewTransform);
+}
+
+TEST_F(Draw_PainterTests, SetMatrix_MapPreservesProjectiveTransform)
+{
+    Transform t;
+    t.setMatrix(1, 0, 0.01, 0, 1, 0, 0, 0, 1);
+
+    PointF result = t.map(PointF(100.0, 0.0));
+    EXPECT_NEAR(result.x(), 50.0, 1e-9);
+    EXPECT_NEAR(result.y(), 0.0, 1e-9);
+}
+
+TEST_F(Draw_PainterTests, FontStyleFlagsJsonRoundtrip)
+{
+    Font font(u"Edwin", Font::Type::Text);
+    font.setPointSizeF(12.0);
+    font.setBold(true);
+    font.setUnderline(true);
+    font.setStrike(true);
+
+    auto prv = std::make_shared<BufferedPaintProvider>();
+    Painter p(prv, "test");
+    p.setViewport(RectF(0, 0, 200, 200));
+    p.beginObject("obj");
+    p.setFont(font);
+    p.drawText(PointF(10, 10), u"styled text");
+    p.endObject();
+    p.endDraw();
+
+    DrawDataPtr origin = prv->drawData();
+    ByteArray json = DrawDataJson::toJson(origin);
+    RetVal<DrawDataPtr> rv = DrawDataJson::fromJson(json);
+    ASSERT_TRUE(rv.ret);
+
+    const Font& restored = rv.val->states.begin()->second.font;
+    EXPECT_TRUE(restored.bold());
+    EXPECT_TRUE(restored.underline());
+    EXPECT_TRUE(restored.strike());
+    EXPECT_EQ(origin->states.begin()->second.font, restored);
 }
