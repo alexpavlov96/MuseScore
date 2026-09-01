@@ -479,6 +479,10 @@ void Score::update(bool resetCmdState, bool layoutAllParts)
         CmdState& cs = ms->cmdState();
         ms->deletePostponed();
 
+        LOGI() << "@# XTZROT Score::update: layoutRange=" << cs.layoutRange()
+               << " startTick=" << cs.startTick().ticks() << " endTick=" << cs.endTick().ticks()
+               << " scores=" << ms->scoreList().size();
+
         if (cs.layoutRange()) {
             for (Score* s : ms->scoreList()) {
                 if (s != this && !s->isOpen() && ms->scoreList().size() > 1 && !layoutAllParts) {

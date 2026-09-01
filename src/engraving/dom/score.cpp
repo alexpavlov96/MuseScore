@@ -6036,6 +6036,13 @@ void Score::doLayoutRange(const Fraction& st, const Fraction& et)
         }
     }
 
+    const int xtzrotLastTick = lastMeasure() ? lastMeasure()->endTick().ticks() : -1;
+    LOGI() << "@# XTZROT doLayoutRange: requested " << st.ticks() << ".." << et.ticks()
+           << " -> actual " << start.ticks() << ".." << end.ticks()
+           << " | scoreLastTick=" << xtzrotLastTick
+           << " isFullRange=" << (start.ticks() <= 0 && (end.ticks() < 0 || end.ticks() >= xtzrotLastTick))
+           << " nstaves=" << nstaves();
+
     renderer()->layoutScore(this, start, end);
 
     if (m_resetAutoplace) {
