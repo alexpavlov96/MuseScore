@@ -50,6 +50,15 @@ void EngravingFontsProvider::addExternalFont(const std::string& name, const std:
     m_externalSymbolFonts.emplace(muse::strings::toLower(name), f);
 }
 
+void EngravingFontsProvider::addExternalFont(const std::string& name, const std::string& family, const muse::ByteArray& font,
+                                             const muse::ByteArray& metadata)
+{
+    UNUSED(family);
+    UNUSED(font);
+    UNUSED(metadata);
+    LOGE() << "engraving font from memory is not supported by this provider: " << name;
+}
+
 std::shared_ptr<EngravingFont> EngravingFontsProvider::doFontByName(const std::string& name) const
 {
     // External fonts should have higher priority than internal fonts

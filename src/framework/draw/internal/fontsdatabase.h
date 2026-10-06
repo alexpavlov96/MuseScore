@@ -23,7 +23,13 @@
 
 #include <vector>
 #include <map>
-#include <unordered_map>
+#include <variant>
+
+#include "muse_framework_config.h"
+
+#ifdef MUSE_MODULE_DRAW_USE_QTFONTMETRICS
+#include <QByteArray>
+#endif
 
 #include "ifontsdatabase.h"
 
@@ -38,24 +44,39 @@ public:
     void removeSubstitutions(const String& f1, const std::vector<String>& substituteNames) override;
 
     int addFont(const FontDataKey& key, const io::path_t& path) override;
+    int addFontFromData(const FontDataKey& key, const ByteArray& data) override;
     void removeFont(const FontDataKey& key) override;
 
     FontDataKey actualFont(const FontDataKey& requireKey, Font::Type type) const override;
     std::vector<FontDataKey> substitutionFonts(const FontDataKey& requireKey) const override;
     FontData fontData(const FontDataKey& requireKey, Font::Type type) const override;
-    bool isFtxFont(const FontDataKey& requireKey, Font::Type type) const override;
 
     async::Notification changed() const override;
 
 private:
 
+    struct FileSource {
+        io::path_t path;
+        mutable ByteArray loaded;
+    };
+
+    struct MemorySource {
+#ifdef MUSE_MODULE_DRAW_USE_QTFONTMETRICS
+        QByteArray data; // the same buffer Qt keeps for this font
+#else
+        ByteArray data;
+#endif
+    };
+
     struct FontInfo {
         int id = -1;
         FontDataKey key;
-        io::path_t path;
+        std::variant<FileSource, MemorySource> source;
 
         bool valid() const { return id > -1; }
     };
+
+    void insert(FontInfo info);
 
     const FontDataKey& defaultFont(Font::Type type) const;
     const FontInfo& fontInfo(const FontDataKey& key) const;
@@ -64,7 +85,6 @@ private:
     std::map<Font::Type, FontDataKey> m_defaults;
     std::map<FontDataKey, std::vector<FontDataKey> > m_familySubstitutions;
     std::map<FontDataKey, FontInfo> m_fonts;
-    mutable std::unordered_map<std::string, ByteArray> m_fileDataCache;
     async::Notification m_changed;
 };
 }

@@ -41,6 +41,8 @@ public:
     void addInternalFont(const std::string& name, const std::string& family, const muse::io::path_t& filePath) override;
     void addExternalFont(const std::string& name, const std::string& family, const muse::io::path_t& filePath,
                          const muse::io::path_t& metadataPath) override;
+    void addExternalFont(const std::string& name, const std::string& family, const muse::ByteArray& font,
+                         const muse::ByteArray& metadata) override;
     IEngravingFontPtr fontByName(const std::string& name) const override;
     std::vector<IEngravingFontPtr> fonts() const override;
 
