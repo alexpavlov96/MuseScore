@@ -22,6 +22,7 @@
 #pragma once
 
 #include <unordered_map>
+#include <variant>
 
 #include "iengravingfont.h"
 #include "modularity/ioc.h"
@@ -30,6 +31,7 @@
 #include "iengravingfontsprovider.h"
 
 #include "io/path.h"
+#include "types/bytearray.h"
 
 #include "infrastructure/smufl.h"
 #include "infrastructure/shape.h"
@@ -53,9 +55,21 @@ class EngravingFont : public IEngravingFont, public muse::Contextable
     muse::GlobalInject<muse::draw::IFontProvider> fontProvider;
     muse::GlobalInject<IEngravingFontsProvider> engravingFonts;
 public:
-    EngravingFont(const std::string& name, const std::string& family, const muse::io::path_t& filePath,
-                  const muse::io::path_t& metadataPath, const muse::modularity::ContextPtr& iocCtx);
-    EngravingFont(const EngravingFont& other);
+    struct FileSource {
+        muse::io::path_t fontPath;
+        muse::io::path_t metadataPath;
+    };
+
+    struct MemorySource {
+        muse::ByteArray font;
+        muse::ByteArray metadata;
+    };
+
+    using Source = std::variant<FileSource, MemorySource>;
+
+    EngravingFont(const std::string& name, const std::string& family, Source source, const muse::modularity::ContextPtr& iocCtx);
+    EngravingFont(const EngravingFont&) = delete;
+    EngravingFont& operator=(const EngravingFont&) = delete;
 
     const std::string& name() const override;
     const std::string& family() const override;
@@ -137,8 +151,7 @@ private:
 
     std::string m_name;
     std::string m_family;
-    muse::io::path_t m_fontPath;
-    muse::io::path_t m_metadataPath;
+    Source m_source;
 
     std::unordered_map<Sid, PropertyValue> m_engravingDefaults;
     double m_textEnclosureThickness = 0;
