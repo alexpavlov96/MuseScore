@@ -23,7 +23,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <cstring>
 #include <string_view>
 
 #include <lodepng.h>
@@ -37,12 +36,6 @@
 #include "log.h"
 
 using namespace muse::draw;
-
-bool FontFaceXT::isFtx(const muse::ByteArray& data)
-{
-    static const char ZIP_SIGNATURE[4] = { 'P', 'K', 3, 4 };
-    return data.size() >= 4 && std::memcmp(data.constData(), ZIP_SIGNATURE, 4) == 0;
-}
 
 static bool isNumber(const std::string& s)
 {

@@ -45,14 +45,12 @@ using namespace mu::engraving;
 // ScoreFont
 // =============================================
 
-EngravingFont::EngravingFont(const std::string& name, const std::string& family,
-                             const path_t& filePath, const path_t& metadataPath,
+EngravingFont::EngravingFont(const std::string& name, const std::string& family, Source source,
                              const modularity::ContextPtr& iocCtx)
     : muse::Contextable(iocCtx),  m_symbols(static_cast<size_t>(SymId::lastSym) + 1),
     m_name(name),
     m_family(family),
-    m_fontPath(filePath),
-    m_metadataPath(metadataPath)
+    m_source(std::move(source))
 {
 }
 
@@ -63,8 +61,7 @@ EngravingFont::EngravingFont(const EngravingFont& other)
     m_symbols  = other.m_symbols;
     m_name     = other.m_name;
     m_family   = other.m_family;
-    m_fontPath = other.m_fontPath;
-    m_metadataPath = other.m_metadataPath;
+    m_source = other.m_source;
 }
 
 // =============================================
@@ -101,9 +98,18 @@ void EngravingFont::ensureLoad()
         return;
     }
 
-    if (-1 == fontProvider()->addSymbolFont(String::fromStdString(m_family), m_fontPath)) {
-        LOGE() << "fatal error: cannot load internal font: " << m_fontPath;
-        return;
+    const String family = String::fromStdString(m_family);
+    if (const MemorySource* memory = std::get_if<MemorySource>(&m_source)) {
+        if (-1 == fontProvider()->addSymbolFontFromData(family, memory->font)) {
+            LOGE() << "fatal error: cannot load font from memory: " << m_name;
+            return;
+        }
+    } else {
+        const FileSource& file = std::get<FileSource>(m_source);
+        if (-1 == fontProvider()->addSymbolFont(family, file.fontPath)) {
+            LOGE() << "fatal error: cannot load internal font: " << file.fontPath;
+            return;
+        }
     }
 
     m_font.setWeight(Font::Normal);
@@ -123,20 +129,29 @@ void EngravingFont::ensureLoad()
         computeMetrics(sym, code);
     }
 
-    File metadataFile(m_metadataPath);
-    if (!metadataFile.open(IODevice::ReadOnly)) {
-        LOGE() << "Failed to open glyph metadata file: " << metadataFile.filePath();
-        return;
+    ByteArray metadata;
+    std::string metadataOrigin;
+    if (const MemorySource* memory = std::get_if<MemorySource>(&m_source)) {
+        metadata = memory->metadata;
+        metadataOrigin = "glyph metadata of " + m_name;
+    } else {
+        File metadataFile(std::get<FileSource>(m_source).metadataPath);
+        if (!metadataFile.open(IODevice::ReadOnly)) {
+            LOGE() << "Failed to open glyph metadata file: " << metadataFile.filePath();
+            return;
+        }
+        metadata = metadataFile.readAll();
+        metadataOrigin = metadataFile.filePath().toStdString();
     }
 
     std::string error;
-    const JsonObject metadataJson = JsonDocument::fromJson(metadataFile.readAll(), &error).rootObject();
+    const JsonObject metadataJson = JsonDocument::fromJson(metadata, &error).rootObject();
     if (!error.empty()) {
-        LOGE() << "Json parse error in " << metadataFile.filePath() << ", error: " << error;
+        LOGE() << "Json parse error in " << metadataOrigin << ", error: " << error;
         return;
     }
     if (!metadataJson.isValid()) {
-        LOGE() << "No valid JSON object in " << metadataFile.filePath();
+        LOGE() << "No valid JSON object in " << metadataOrigin;
         return;
     }
 
@@ -146,6 +161,10 @@ void EngravingFont::ensureLoad()
     loadEngravingDefaults(metadataJson.value("engravingDefaults").toObject());
 
     m_loaded = true;
+
+    if (MemorySource* memory = std::get_if<MemorySource>(&m_source)) {
+        *memory = MemorySource();
+    }
 }
 
 void EngravingFont::loadComposedGlyphs()

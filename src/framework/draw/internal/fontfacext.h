@@ -63,8 +63,6 @@ private:
 class FontFaceXT : public IFontFace
 {
 public:
-    static bool isFtx(const muse::ByteArray& data);
-
     FontFaceXT();
     ~FontFaceXT();
 

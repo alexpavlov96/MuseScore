@@ -30,16 +30,13 @@
 #endif
 #include "fontfacedu.h"
 
+#include "global/serialization/zipreader.h"
+
 #include "log.h"
 
-static bool isFtxData(const muse::ByteArray& data)
+static bool isFtx(const muse::ByteArray& data)
 {
-#ifdef MUSE_MODULE_DRAW_USE_FONTFACE_XT
-    return muse::draw::FontFaceXT::isFtx(data);
-#else
-    UNUSED(data);
-    return false;
-#endif
+    return muse::ZipReader::isZip(data);
 }
 
 using namespace muse;
@@ -529,11 +526,6 @@ void FontsEngine::setFontFaceFactory(const FontFaceFactory& f)
     m_fontFaceFactory = f;
 }
 
-bool FontsEngine::isFtxFont(const FontDataKey& actualDataKey, Font::Type type) const
-{
-    return isFtxData(fontsDatabase()->fontData(actualDataKey, type).data);
-}
-
 IFontFace* FontsEngine::createFontFace(const FontData& fontData, Font::Type type) const
 {
     const FontDataKey& dataKey = fontData.key;
@@ -542,7 +534,7 @@ IFontFace* FontsEngine::createFontFace(const FontData& fontData, Font::Type type
     }
 
     IFontFace* origin = nullptr;
-    if (isFtxData(fontData.data)) {
+    if (isFtx(fontData.data)) {
 #ifdef MUSE_MODULE_DRAW_USE_FONTFACE_XT
         origin = new FontFaceXT();
 #else
@@ -635,7 +627,8 @@ FontsEngine::RequireFace* FontsEngine::fontFace(const Font& f, bool isSymbolMode
     //! (for example, if there is no required one)
     FontDataKey actualDataKey = fontsDatabase()->actualFont(requireKey.dataKey, requireKey.type);
 
-    const int loadedPixelSize = isFtxFont(actualDataKey, requireKey.type) ? static_cast<int>(LOADED_PIXEL_SIZE)
+    const int loadedPixelSize = isFtx(fontsDatabase()->fontData(actualDataKey, requireKey.type).data)
+                                ? static_cast<int>(LOADED_PIXEL_SIZE)
                                 : requireKey.pixelSize;
     IFontFace* face = fontFaceByActualDataKey(actualDataKey, requireKey.type, loadedPixelSize, isSymbolMode);
     if (!face) {
@@ -651,7 +644,7 @@ FontsEngine::RequireFace* FontsEngine::fontFace(const Font& f, bool isSymbolMode
     auto subtitutionFontDataKeys = fontsDatabase()->substitutionFonts(requireKey.dataKey);
     for (const FontDataKey& dataKey : subtitutionFontDataKeys) {
         const FontDataKey actualSubtitutionDataKey = fontsDatabase()->actualFont(dataKey, requireKey.type);
-        const int subtitutionLoadedPixelSize = isFtxFont(actualSubtitutionDataKey, requireKey.type)
+        const int subtitutionLoadedPixelSize = isFtx(fontsDatabase()->fontData(actualSubtitutionDataKey, requireKey.type).data)
                                                ? static_cast<int>(LOADED_PIXEL_SIZE) : requireKey.pixelSize;
         IFontFace* subtitutionFace = fontFaceByActualDataKey(actualSubtitutionDataKey, requireKey.type, subtitutionLoadedPixelSize,
                                                              isSymbolMode);

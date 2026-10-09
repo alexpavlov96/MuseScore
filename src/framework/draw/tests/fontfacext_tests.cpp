@@ -173,13 +173,6 @@ static std::unique_ptr<FontFaces> loadEdwinFaces()
     return faces;
 }
 
-TEST_F(Draw_FontFaceXTTests, IsFtx)
-{
-    EXPECT_TRUE(FontFaceXT::isFtx(readFontData(edwinXtPath())));
-    EXPECT_FALSE(FontFaceXT::isFtx(readFontData(edwinFtPath())));
-    EXPECT_FALSE(FontFaceXT::isFtx(ByteArray()));
-}
-
 TEST_F(Draw_FontFaceXTTests, TextMetrics)
 {
     std::unique_ptr<FontFaces> faces = loadEdwinFaces();

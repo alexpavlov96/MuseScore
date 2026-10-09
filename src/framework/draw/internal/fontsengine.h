@@ -97,7 +97,6 @@ private:
     };
 
     IFontFace* createFontFace(const FontData& fontData, Font::Type type) const;
-    bool isFtxFont(const FontDataKey& actualDataKey, Font::Type type) const;
     RequireFace* fontFace(const Font& f, bool isSymbolMode = false) const;
     IFontFace* fontFaceByActualDataKey(const FontDataKey& actualDataKey, Font::Type type, int loadedPixelSize, bool isSymbolMode) const;
     IFontFace* sdfFontFaceFor(const IFontFace* layoutFace) const;
